@@ -15,7 +15,7 @@ const wrapper = `
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>Document</title>
+		<title>thoughts</title>
 		<style type="text/css">
 			body {
 				font-family: monospace;
