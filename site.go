@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 type site struct {
@@ -46,48 +48,40 @@ func newSite(logger *log.Logger, repoURL string, useCache bool) (*site, error) {
 }
 
 func (s *site) Serve(ctx context.Context) error {
-	server := &http.Server{
-		Addr:    ":8080",
-		Handler: s,
-	}
-
 	s.logger.Println("syncing active repo")
 	if err := s.activeRepo.Sync(ctx); err != nil {
 		return fmt.Errorf("failed to sync repo: %w", err)
 	}
 
-	syncerr := make(chan error, 1)
-	go func() {
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
 		if err := s.syncRepos(ctx); err != nil {
-			syncerr <- err
+			fmt.Printf("failed to sync repos: %v\n", err)
 		}
-	}()
+		return nil
+	})
 
-	s.logger.Println("starting server on :8080")
-	servererr := make(chan error, 1)
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			servererr <- err
+	g.Go(func() error {
+		s.logger.Println("starting server on :8080")
+		server := &http.Server{
+			Addr:    ":8080",
+			Handler: s,
 		}
-	}()
 
-	for {
-		select {
-		case <-ctx.Done():
+		go func() {
+			<-ctx.Done()
 			shutdownctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := server.Shutdown(shutdownctx); err != nil {
-				return fmt.Errorf("failed to shutdown server: %w", err)
+				s.logger.Printf("failed to shutdown server: %v\n", err)
 			}
+		}()
 
-			return nil
-		case err := <-syncerr:
-			// sync errors should be logged, but not fatal
-			fmt.Printf("failed to sync repos: %v\n", err)
-		case err := <-servererr:
-			return fmt.Errorf("failed to serve: %w", err)
-		}
-	}
+		return server.ListenAndServe()
+	})
+
+	return g.Wait()
 }
 
 func (s *site) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -11,7 +11,7 @@ import (
 
 var (
 	repoURL  = flag.String("repo", "", "the repo to use")
-	useCache = flag.Bool("use-cache", false, "use the cache, if none, it will be created")
+	useCache = flag.Bool("use-cache", false, "use the cache, if true, it creates the cache and uses it if it exists")
 )
 
 func main() {
