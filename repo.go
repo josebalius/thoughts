@@ -52,8 +52,9 @@ func (r *repo) Index() *document {
 	return r.index
 }
 
-func (r *repo) Document(path string) *document {
-	return r.documents[path]
+func (r *repo) Document(path string) (*document, bool) {
+	doc, ok := r.documents[path]
+	return doc, ok
 }
 
 func (r *repo) indexDocuments(docs []*document) error {
